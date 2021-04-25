@@ -11,7 +11,7 @@ from pipeline_space.utils import generate_grid
 from pipeline_space.utils import get_hash_of_str
 
 
-def get_all_configs():
+def get_HDL():
     HDL = {
         "scaler(choice)": {
             "MinMaxScaler": {
@@ -44,17 +44,13 @@ def get_all_configs():
         },
         "learner(choice)": {
             "LGBMClassifier": {
-                # "n_estimators": {"_type": "ordinal", "_value": [50, 100, 200]},
                 "num_leaves": {"_type": "int_quniform", "_value": [30, 150, 30]},  # 30 60 90 120 150
                 "colsample_bytree": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
-                # "subsample": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
                 "reg_lambda": {"_type": "ordinal", "_value": [1e-3, 1]}
             },
             "XGBClassifier": {
-                # "n_estimators": {"_type": "ordinal", "_value": [50, 100, 200]},
                 "max_depth": {"_type": "int_quniform", "_value": [10, 90, 20]},  # 10 30 50 70 90
                 "colsample_bytree": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
-                # "subsample": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
                 "reg_lambda": {"_type": "ordinal", "_value": [1e-3, 1]}
             },
             "LinearSVC": {
@@ -81,6 +77,71 @@ def get_all_configs():
             }
         }
     }
+    return HDL
+
+
+def get_hyperopt_space():
+    from hyperopt import hp
+    space = {
+        "scaler": hp.choice("scaler", [
+            "MinMaxScaler", "StandardScaler", "RobustScaler"
+        ]),
+        "selector": hp.choice("selector", [
+            {"LogisticRegression": {"C": hp.choice("selector.LogisticRegression.C", [0.1, 0.25, 0.5])}},
+            {"LinearSVC": {"C": hp.choice("selector.LinearSVC.C", [0.1, 0.25, 0.5])}},
+            {"XGBClassifier": {"max_depth": 10 + hp.quniform("selector.XGBClassifier.max_depth", 0, 40, 20)}},
+            {"LGBMClassifier": {"num_leaves": 30 + hp.quniform("selector.LGBMClassifier.num_leaves", 0, 60, 30)}},
+            {"RandomForestClassifier": {
+                "min_samples_split": 12 + hp.quniform("selector.RandomForestClassifier.min_samples_split", 0, 10, 5)}},
+            {"ExtraTreesClassifier": {
+                "min_samples_split": 12 + hp.quniform("selector.ExtraTreesClassifier.min_samples_split", 0, 10, 5)}},
+            "None"
+        ]),
+        "learner": hp.choice("learner", [
+            {"LGBMClassifier": {
+                "num_leaves": hp.quniform("learner.LGBMClassifier.num_leaves", 30, 150, 30),
+                "colsample_bytree": hp.quniform("learner.LGBMClassifier.colsample_bytree", 0.8, 1, 0.1),
+                "reg_lambda": hp.choice("learner.LGBMClassifier.reg_lambda", [1e-3, 1])
+            }},
+            {"XGBClassifier": {
+                "max_depth": 10 + hp.quniform("learner.XGBClassifier.max_depth", 0, 80, 20),
+                "colsample_bytree": hp.quniform("learner.XGBClassifier.colsample_bytree", 0.8, 1, 0.1),
+                "reg_lambda": hp.choice("learner.XGBClassifier.reg_lambda", [1e-3, 1])
+            }},
+            {"LinearSVC": {
+                "C": 0.01 + hp.quniform("learner.LinearSVC.C", 0, 1 - 0.01, 0.066),
+                "penalty": hp.choice("learner.LinearSVC.penalty", ["l2", "l1"]),
+            }},
+            {"LogisticRegression": {
+                "C": 0.01 + hp.quniform("learner.LogisticRegression.C", 0, 1 - 0.01, 0.066),
+                "penalty": hp.choice("learner.LogisticRegression.penalty", ["l2", "l1"]),
+            }},
+            {"RandomForestClassifier": {
+                "min_samples_split":
+                    2 + hp.quniform("learner.RandomForestClassifier.min_samples_split", 0, 20, 5),
+                "min_samples_leaf":
+                    1 + hp.quniform("learner.RandomForestClassifier.min_samples_leaf", 0, 10, 5),
+                "bootstrap": hp.choice("learner.RandomForestClassifier.bootstrap", [True, False])
+            }},
+            {"ExtraTreesClassifier": {
+                "min_samples_split":
+                    2 + hp.quniform("learner.ExtraTreesClassifier.min_samples_split", 0, 20, 5),
+                "min_samples_leaf":
+                    1 + hp.quniform("learner.ExtraTreesClassifier.min_samples_leaf", 0, 10, 5),
+                "bootstrap": hp.choice("learner.ExtraTreesClassifier.bootstrap", [True, False])
+            }},
+            {"KNeighborsClassifier": {
+                "n_neighbors":
+                    1 + hp.quniform("learner.KNeighborsClassifier.n_neighbors", 2, 6, 2),
+                "p": hp.quniform("learner.KNeighborsClassifier.p", 1, 2, 1),
+            }},
+        ]),
+    }
+    return space
+
+
+def get_all_configs():
+    HDL = get_HDL()
     CS = hdl2cs(HDL)
     # print(CS)
     grids = generate_grid(CS)
