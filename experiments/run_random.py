@@ -6,14 +6,15 @@
 import json
 import sys
 from copy import deepcopy
-from functools import partial
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from hyperopt import tpe, fmin, Trials
+from ultraopt import fmin
+from ultraopt.hdl import hdl2cs
+from ultraopt.hdl import layering_config
 
-from pipeline_space.build_ml_pipeline_space import get_hyperopt_space
+from pipeline_space.build_ml_pipeline_space import get_HDL
 
 # 146594, 189863, 189864
 dataset_id = sys.argv[1]
@@ -21,14 +22,7 @@ print(dataset_id)
 data = pd.read_csv(f'processed_data/d{dataset_id}_processed.csv')
 # data = pd.read_csv('processed_data/d189863_processed.csv')
 # data = pd.read_csv('processed_data/d189864_processed.csv')
-space = get_hyperopt_space()
-
-
-def raw2min(df: pd.DataFrame):
-    df_m = pd.DataFrame(np.zeros_like(df.values), columns=df.columns)
-    for i in range(df.shape[0]):
-        df_m.loc[i, :] = df.loc[:i, :].min()
-    return df_m
+HDL = get_HDL()
 
 
 class Evaluator():
@@ -41,12 +35,13 @@ class Evaluator():
         print(self.global_min)
 
     def __call__(self, config):
-        layered_config_ = deepcopy(config)
+        layered_config = layering_config(config)
+        layered_config_ = deepcopy(layered_config)
         df = self.df
         for component in ['scaler', 'selector', 'learner']:
             sub_config = layered_config_[component]
-            if isinstance(sub_config, str):
-                df_ = df.loc[df[component] == sub_config]
+            if sub_config is None:
+                df_ = df.loc[df[component] == "None"]
                 df = df_
                 continue
             AS, HP = sub_config.popitem()
@@ -55,7 +50,7 @@ class Evaluator():
             for k, v in HP.items():
                 name = f"{component}.{AS}.{k}"
                 # 对于浮点数考虑精度误差
-                if isinstance(v, (float)):
+                if isinstance(v, float):
                     df_ = df.loc[np.abs(df[name] - v) < 1e-8, :]
                 else:
                     df_ = df.loc[df[name] == v, :]
@@ -64,22 +59,25 @@ class Evaluator():
         return 1 - float(df[self.metric].values[0])
 
 
+def raw2min(df: pd.DataFrame):
+    df_m = pd.DataFrame(np.zeros_like(df.values), columns=df.columns)
+    for i in range(df.shape[0]):
+        df_m.loc[i, :] = df.loc[:i, :].min()
+    return df_m
+
+
 evaluator = Evaluator(data, 'balanced_accuracy')
-repetitions = int(sys.argv[2])
-max_iter = int(sys.argv[3])
-setup_runs = int(sys.argv[4])
-print(f"repetitions={repetitions}, max_iter={max_iter}, setup_runs={setup_runs}")
+CS = hdl2cs(HDL)
+repetitions = 20
+max_iter = 200
+setup_runs = 40
 res = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
                    index=range(max_iter))
 for trial in range(repetitions):
-    trials = Trials()
-    best = fmin(
-        evaluator, space, algo=partial(tpe.suggest, n_startup_jobs=setup_runs),
-        max_evals=max_iter,
-        rstate=np.random.RandomState(trial * 10), trials=trials,
-
+    ret = fmin(
+        evaluator, HDL, "Random", random_state=trial * 10, n_iterations=200,
     )
-    losses = trials.losses()
+    losses = ret["budget2obvs"][1]["losses"]
     res[f"trial-{trial}"] = losses
 res = raw2min(res)
 m = res.mean(1)
@@ -93,6 +91,6 @@ final_result = {
     "q75": res.quantile(0.75, 1).tolist(),
     "q90": res.quantile(0.90, 1).tolist()
 }
-Path(f'experiments/results/hyperopt-TPE-{dataset_id}.json').write_text(
+Path(f'experiments/results/Random-{dataset_id}.json').write_text(
     json.dumps(final_result)
 )

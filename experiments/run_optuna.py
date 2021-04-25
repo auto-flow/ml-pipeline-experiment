@@ -3,6 +3,7 @@
 # @Author  : qichun tang
 # @Date    : 2021-04-25
 # @Contact    : qichun.tang@bupt.edu.cn
+import optuna
 import json
 import sys
 from copy import deepcopy
@@ -16,15 +17,6 @@ from ultraopt.hdl import layering_config
 from ultraopt.optimizer import ETPEOptimizer
 
 from pipeline_space.build_ml_pipeline_space import get_HDL
-
-# 146594, 189863, 189864
-dataset_id = sys.argv[1]
-print(dataset_id)
-data = pd.read_csv(f'processed_data/d{dataset_id}_processed.csv')
-# data = pd.read_csv('processed_data/d189863_processed.csv')
-# data = pd.read_csv('processed_data/d189864_processed.csv')
-HDL = get_HDL()
-
 
 class Evaluator():
     def __init__(self, df: pd.DataFrame, metric):
@@ -58,45 +50,3 @@ class Evaluator():
                 df = df_
         assert df.shape[0] == 1
         return 1 - float(df[self.metric].values[0])
-
-
-def raw2min(df: pd.DataFrame):
-    df_m = pd.DataFrame(np.zeros_like(df.values), columns=df.columns)
-    for i in range(df.shape[0]):
-        df_m.loc[i, :] = df.loc[:i, :].min()
-    return df_m
-
-
-evaluator = Evaluator(data, 'balanced_accuracy')
-CS = hdl2cs(HDL)
-repetitions = int(sys.argv[2])
-max_iter = int(sys.argv[3])
-setup_runs = int(sys.argv[4])
-print(f"repetitions={repetitions}, max_iter={max_iter}, setup_runs={setup_runs}")
-res = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
-                   index=range(max_iter))
-for trial in range(repetitions):
-    optimizer = ETPEOptimizer(
-        min_points_in_model=setup_runs,
-    )
-    ret = fmin(
-        evaluator, HDL, optimizer, random_state=trial * 10,
-        n_iterations=max_iter,
-    )
-    losses = ret["budget2obvs"][1]["losses"]
-    res[f"trial-{trial}"] = losses
-res = raw2min(res)
-m = res.mean(1)
-s = res.std(1)
-final_result = {
-    "global_min": evaluator.global_min,
-    "mean": m.tolist(),
-    "std": s.tolist(),
-    "q10": res.quantile(0.10, 1).tolist(),
-    "q25": res.quantile(0.25, 1).tolist(),
-    "q75": res.quantile(0.75, 1).tolist(),
-    "q90": res.quantile(0.90, 1).tolist()
-}
-Path(f'experiments/results/ultraopt-ETPE-{dataset_id}.json').write_text(
-    json.dumps(final_result)
-)

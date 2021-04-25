@@ -46,12 +46,12 @@ def get_HDL():
             "LGBMClassifier": {
                 "num_leaves": {"_type": "int_quniform", "_value": [30, 150, 30]},  # 30 60 90 120 150
                 "colsample_bytree": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
-                "reg_lambda": {"_type": "ordinal", "_value": [1e-3, 1]}
+                "reg_lambda": {"_type": "choice", "_value": [1e-3, 1]}
             },
             "XGBClassifier": {
                 "max_depth": {"_type": "int_quniform", "_value": [10, 90, 20]},  # 10 30 50 70 90
                 "colsample_bytree": {"_type": "quniform", "_value": [0.8, 1, 0.1]},
-                "reg_lambda": {"_type": "ordinal", "_value": [1e-3, 1]}
+                "reg_lambda": {"_type": "choice", "_value": [1e-3, 1]}
             },
             "LinearSVC": {
                 "C": {"_type": "quniform", "_value": [0.01, 1, 0.066]},
@@ -77,6 +77,13 @@ def get_HDL():
             }
         }
     }
+    return HDL
+
+
+def get_no_ordinal_HDL():
+    HDL = get_HDL()
+    HDL['selector(choice)']['LogisticRegression']['C']['_type'] = 'choice'
+    HDL['selector(choice)']['LinearSVC']['C']['_type'] = 'choice'
     return HDL
 
 
