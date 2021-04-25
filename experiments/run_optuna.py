@@ -27,12 +27,10 @@ class Evaluator():
         self.global_min = 1 - df[metric].max()
         print(self.global_min)
 
-    def __call__(self, config):
-        layered_config = layering_config(config)
-        layered_config_ = deepcopy(layered_config)
+    def __call__(self, trial):
         df = self.df
         for component in ['scaler', 'selector', 'learner']:
-            sub_config = layered_config_[component]
+            sub_config = trial.suggest_categorical("optimizer", ["MomentumSGD", "Adam"])
             if sub_config is None:
                 df_ = df.loc[df[component] == "None"]
                 df = df_
