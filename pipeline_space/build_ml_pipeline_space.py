@@ -11,6 +11,7 @@ from pipeline_space.utils import generate_grid
 from pipeline_space.utils import get_hash_of_str
 
 
+
 def get_HDL():
     HDL = {
         "scaler(choice)": {

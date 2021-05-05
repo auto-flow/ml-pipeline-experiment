@@ -5,7 +5,6 @@
 # @Contact    : qichun.tang@bupt.edu.cn
 import json
 import sys
-from copy import deepcopy
 from functools import partial
 from pathlib import Path
 
@@ -13,68 +12,27 @@ import numpy as np
 import pandas as pd
 from hyperopt import tpe, fmin, Trials
 
+from experiments.evaluator import HyperoptEvaluator
+from experiments.utils import raw2min
 from pipeline_space.build_ml_pipeline_space import get_hyperopt_space
 
 # 146594, 189863, 189864
 dataset_id = sys.argv[1]
 print(dataset_id)
 data = pd.read_csv(f'processed_data/d{dataset_id}_processed.csv')
-# data = pd.read_csv('processed_data/d189863_processed.csv')
-# data = pd.read_csv('processed_data/d189864_processed.csv')
 space = get_hyperopt_space()
 
-
-def raw2min(df: pd.DataFrame):
-    df_m = pd.DataFrame(np.zeros_like(df.values), columns=df.columns)
-    for i in range(df.shape[0]):
-        df_m.loc[i, :] = df.loc[:i, :].min()
-    return df_m
-
-
-class Evaluator():
-    def __init__(self, df: pd.DataFrame, metric):
-        self.metric = metric
-        self.df = df
-        # 打印全局最优解数值
-        print('Global minimum: ', end="")
-        self.global_min = 1 - df[metric].max()
-        print(self.global_min)
-
-    def __call__(self, config):
-        layered_config_ = deepcopy(config)
-        df = self.df
-        for component in ['scaler', 'selector', 'learner']:
-            sub_config = layered_config_[component]
-            if isinstance(sub_config, str):
-                df_ = df.loc[df[component] == sub_config]
-                df = df_
-                continue
-            AS, HP = sub_config.popitem()
-            df_ = df.loc[df[component] == AS, :]
-            df = df_
-            for k, v in HP.items():
-                name = f"{component}.{AS}.{k}"
-                # 对于浮点数考虑精度误差
-                if isinstance(v, (float)):
-                    df_ = df.loc[np.abs(df[name] - v) < 1e-8, :]
-                else:
-                    df_ = df.loc[df[name] == v, :]
-                df = df_
-        assert df.shape[0] == 1
-        return 1 - float(df[self.metric].values[0])
-
-
-evaluator = Evaluator(data, 'balanced_accuracy')
+evaluator = HyperoptEvaluator(data, 'balanced_accuracy')
 repetitions = int(sys.argv[2])
 max_iter = int(sys.argv[3])
-setup_runs = int(sys.argv[4])
-print(f"repetitions={repetitions}, max_iter={max_iter}, setup_runs={setup_runs}")
+n_startup_trials = int(sys.argv[4])
+print(f"repetitions={repetitions}, max_iter={max_iter}, n_startup_trials={n_startup_trials}")
 res = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
                    index=range(max_iter))
 for trial in range(repetitions):
     trials = Trials()
     best = fmin(
-        evaluator, space, algo=partial(tpe.suggest, n_startup_jobs=setup_runs),
+        evaluator, space, algo=partial(tpe.suggest, n_startup_jobs=n_startup_trials),
         max_evals=max_iter,
         rstate=np.random.RandomState(trial * 10), trials=trials,
 

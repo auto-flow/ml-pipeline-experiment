@@ -30,3 +30,5 @@ smac3-output_*
 !*_processed.csv
 submit_jobs
 !experiments/results/*.json
+!experiments/plots/*.png
+!experiments/plots/*.pdf
