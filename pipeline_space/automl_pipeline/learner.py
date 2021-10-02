@@ -84,4 +84,5 @@ class Learner(BaseEstimator, ClassifierMixin):
         try:
             return self.model.predict_proba(X)
         except:
-            y_pred = softmax(self.model.decision_function)
+            y_pred = softmax(self.model.decision_function(X))
+            return y_pred
