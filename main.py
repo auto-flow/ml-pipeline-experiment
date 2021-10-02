@@ -103,9 +103,9 @@ print(next(cv.split(X, y))[0])
 
 # 单机测试
 if "tqc" in hostname:
-    n_jobs = 5
+    n_jobs = 1
 else:
-    n_jobs = 30
+    n_jobs = 1
 
 seed(0)
 shuffle(sub_configs)
