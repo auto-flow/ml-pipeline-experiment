@@ -44,7 +44,7 @@ db = pw.PostgresqlDatabase(
     password="xenon"
 )
 
-os.environ['OMP_NUM_THREADS'] = "1"
+# os.environ['OMP_NUM_THREADS'] = "1"
 
 
 def get_conn(create_table=False):
@@ -103,7 +103,7 @@ print(next(cv.split(X, y))[0])
 
 # 单机测试
 if "tqc" in hostname:
-    n_jobs = 10
+    n_jobs = 5
 else:
     n_jobs = 30
 
