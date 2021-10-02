@@ -63,6 +63,7 @@ class Learner(BaseEstimator, ClassifierMixin):
         elif AS in boosting_models:
             self.HP.update(dict(
                 n_jobs=n_jobs,
+                nthread=n_jobs,
                 n_estimators=100,
                 learning_rate=0.1,
             ))
@@ -83,5 +84,4 @@ class Learner(BaseEstimator, ClassifierMixin):
         try:
             return self.model.predict_proba(X)
         except:
-            y_pred = softmax(self.model.decision_function(X))
-            return y_pred
+            y_pred = softmax(self.model.decision_function)
