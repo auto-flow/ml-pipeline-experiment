@@ -47,7 +47,7 @@ db = pw.PostgresqlDatabase(
 os.environ['OMP_NUM_THREADS'] = "1"
 
 
-def get_conn():
+def get_conn(create_table=False):
     class Trial(pw.Model):
         config_id = pw.CharField(primary_key=True)
         cost_time = pw.FloatField(null=True)
@@ -58,11 +58,12 @@ def get_conn():
         class Meta:
             database = db
             table_name = os.environ['TABLE_NAME']
-
-    Trial.create_table(safe=True)
+    if create_table:
+        Trial.create_table(safe=True)
     return Trial
 
 
+get_conn(create_table=True)
 # 单机环境变量填写：
 # SPLITS=10;INDEX=0;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=small_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2
 SPLITS = int(os.environ['SPLITS'])
@@ -102,7 +103,7 @@ print(next(cv.split(X, y))[0])
 
 # 单机测试
 if "tqc" in hostname:
-    n_jobs = 1
+    n_jobs = 10
 else:
     n_jobs = 30
 
@@ -164,4 +165,3 @@ Parallel(backend="multiprocessing", n_jobs=n_jobs)(
 )
 
 os.system("mkdir rm -rf $SAVEDPATH/tmp")
-
