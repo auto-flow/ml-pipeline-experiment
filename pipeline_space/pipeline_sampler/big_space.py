@@ -17,10 +17,10 @@ class BigPipelineSampler(BasePipelineSampler):
             },
             "selector(choice)": {
                 "LogisticRegression": {
-                    "C": {"_type": "ordinal", "_value": [0.01, 0.1, 0.25, 0.5, 1, 5]}
+                    "C": {"_type": "ordinal", "_value": [0.1, 0.25, 0.5, 1, 5]}
                 },
                 "LinearSVC": {
-                    "C": {"_type": "ordinal", "_value": [0.01, 0.1, 0.25, 0.5, 1, 5]}
+                    "C": {"_type": "ordinal", "_value": [0.1, 0.25, 0.5, 1, 5]}
                 },
                 "XGBClassifier": {
                     "max_depth": {"_type": "int_quniform", "_value": [10, 50, 10]},

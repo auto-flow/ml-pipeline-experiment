@@ -19,7 +19,7 @@ import os
 import socket
 from collections import defaultdict
 from pprint import pprint
-from random import shuffle, seed
+from random import seed
 from time import time
 
 import numpy as np
@@ -44,6 +44,7 @@ db = pw.PostgresqlDatabase(
     password="xenon"
 )
 
+
 # os.environ['OMP_NUM_THREADS'] = "1"
 
 
@@ -58,6 +59,7 @@ def get_conn(create_table=False):
         class Meta:
             database = db
             table_name = os.environ['TABLE_NAME']
+
     if create_table:
         Trial.create_table(safe=True)
     return Trial
@@ -108,8 +110,8 @@ else:
     n_jobs = 1
 
 seed(0)
-shuffle(sub_configs)
-config_chunks = get_chunks(sub_configs, n_jobs)
+# shuffle(sub_configs)
+config_chunks = get_chunks(sub_configs, 1)
 
 
 # for config in tqdm(sub_configs):
@@ -118,6 +120,7 @@ def process(configs):
     Trial = get_conn()
     for config in configs:
         config_id = get_hash_of_str(str(config))
+        print(config_id)
         print(config)
         all_scores_list = defaultdict(list)
         start_time = time()
@@ -132,7 +135,7 @@ def process(configs):
                 y_train = y[train_ix]
                 X_test = X[test_ix, :]
                 y_test = y[test_ix]
-                pipeline = construct_pipeline(config, verbose=True, n_jobs=8)
+                pipeline = construct_pipeline(config, verbose=True, n_jobs=None)
                 pipeline.fit(X_train, y_train)
                 y_pred = pipeline.predict_proba(X_test)
                 # 算 metrics
@@ -145,9 +148,9 @@ def process(configs):
             failed_info = None
         except Exception as e:
             failed_info = str(e)
-            all_scores_mean = None
+            all_scores_mean = {}
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
-        print('accuracy', all_scores_mean['accuracy'])
+        print('accuracy', all_scores_mean.get('accuracy'))
         Trial.update(
             cost_time=cost_time,
             failed_info=failed_info,

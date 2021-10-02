@@ -36,7 +36,7 @@ def construct_learner(config, n_jobs=None):
 
 def construct_pipeline(
         config,
-        memory=os.environ["SAVEDPATH"] + "/tmp",
+        memory=os.getenv("SAVEDPATH",'.savedpath') + "/tmp",
         verbose=True, n_jobs=None):
     config = deepcopy(config)
     steps = [
