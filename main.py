@@ -16,23 +16,26 @@
     3.4 整理好数据，上传数据库
 '''
 import os
+import socket
 from collections import defaultdict
 from pprint import pprint
+from random import shuffle, seed
 from time import time
 
 import numpy as np
 import peewee as pw
-from joblib import load
+from joblib import load, delayed, Parallel
 from playhouse.postgres_ext import JSONField
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
-from tqdm import tqdm
 
 from pipeline_space.automl_pipeline.construct_pipeline import construct_pipeline
-from pipeline_space.build_ml_pipeline_space import get_all_configs
+# from pipeline_space.build_ml_pipeline_space import get_all_configs
 from pipeline_space.metrics import calculate_score, f1
+from pipeline_space.pipeline_sampler import SmallPipelineSampler, BigPipelineSampler
 from pipeline_space.utils import get_chunks, get_hash_of_str
 
+hostname = socket.gethostname()
 # psql -U postgres
 db = pw.PostgresqlDatabase(
     database="ml_pipeline_experiment",
@@ -41,27 +44,42 @@ db = pw.PostgresqlDatabase(
     password="xenon"
 )
 
-
-class Trial(pw.Model):
-    config_id = pw.CharField(primary_key=True)
-    cost_time = pw.FloatField(null=True)
-    failed_info = pw.TextField(null=True)
-    all_score = JSONField(null=True)
-    config = JSONField(null=True)
-
-    class Meta:
-        database = db
-        table_name = os.environ['TABLE_NAME']
+os.environ['OMP_NUM_THREADS'] = "1"
 
 
+def get_conn():
+    class Trial(pw.Model):
+        config_id = pw.CharField(primary_key=True)
+        cost_time = pw.FloatField(null=True)
+        failed_info = pw.TextField(null=True)
+        all_score = JSONField(null=True)
+        config = JSONField(null=True)
+
+        class Meta:
+            database = db
+            table_name = os.environ['TABLE_NAME']
+
+    Trial.create_table(safe=True)
+    return Trial
+
+
+# 单机环境变量填写：
+# SPLITS=10;INDEX=0;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=small_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2
 SPLITS = int(os.environ['SPLITS'])
 INDEX = int(os.environ['INDEX'])
 KFOLD = int(os.environ['KFOLD'])
 DATAPATH = os.environ['DATAPATH']
+SPACE_TYPE: str = os.environ['SPACE_TYPE']
 CONFIG_ID = os.environ.get('CONFIG_ID')  # c478a1b5bde6f36883bc429f39a66b41
 
-Trial.create_table(safe=True)
-all_configs, config_id_to_config = get_all_configs()
+if SPACE_TYPE.upper() == "SMALL":
+    space_sampler = SmallPipelineSampler()
+elif SPACE_TYPE.upper() == "BIG":
+    space_sampler = BigPipelineSampler()
+else:
+    raise NotImplementedError
+
+all_configs, config_id_to_config = space_sampler.get_all_configs()
 if CONFIG_ID is None:
     np.random.seed(0)
     np.random.shuffle(all_configs)
@@ -81,43 +99,69 @@ X = X[:, ~np.array(cat)]
 y = LabelEncoder().fit_transform(y)
 cv = StratifiedKFold(n_splits=KFOLD, shuffle=True, random_state=0)
 print(next(cv.split(X, y))[0])
-for config in tqdm(sub_configs):
-    config_id = get_hash_of_str(str(config))
-    print(config)
-    all_scores_list = defaultdict(list)
-    start_time = time()
-    if len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0:
-        Trial.create(config_id=config_id)
-    else:
-        print(f'{config_id} exists, continue')
-        continue
-    try:
-        for train_ix, test_ix in cv.split(X, y):
-            X_train = X[train_ix, :]
-            y_train = y[train_ix]
-            X_test = X[test_ix, :]
-            y_test = y[test_ix]
-            pipeline = construct_pipeline(config, verbose=True, n_jobs=8)
-            pipeline.fit(X_train, y_train)
-            y_pred = pipeline.predict_proba(X_test)
-            # 算 metrics
-            all_scores = calculate_score(y_test, y_pred, "classification", f1, True)[1]
-            for metric_name, score in all_scores.items():
-                all_scores_list[metric_name].append(score)
-        all_scores_mean = {}
-        for metric_name, scores in all_scores_list.items():
-            all_scores_mean[metric_name] = float(np.mean(scores))
-        failed_info = None
-    except Exception as e:
-        failed_info = str(e)
-        all_scores_mean = None
-    cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
-    print('accuracy', all_scores_mean['accuracy'])
-    Trial.update(
-        cost_time=cost_time,
-        failed_info=failed_info,
-        all_score=all_scores_mean,
-        config=config
-    ).where(Trial.config_id == config_id).execute()
-    # 整理数据，上传数据库
-    print()
+
+# 单机测试
+if "tqc" in hostname:
+    n_jobs = 1
+else:
+    n_jobs = 30
+
+seed(0)
+shuffle(sub_configs)
+config_chunks = get_chunks(sub_configs, n_jobs)
+
+
+# for config in tqdm(sub_configs):
+def process(configs):
+    # 会深拷贝X,y
+    Trial = get_conn()
+    for config in configs:
+        config_id = get_hash_of_str(str(config))
+        print(config)
+        all_scores_list = defaultdict(list)
+        start_time = time()
+        if len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0:
+            Trial.create(config_id=config_id)
+        else:
+            print(f'{config_id} exists, continue')
+            continue
+        try:
+            for train_ix, test_ix in cv.split(X, y):
+                X_train = X[train_ix, :]
+                y_train = y[train_ix]
+                X_test = X[test_ix, :]
+                y_test = y[test_ix]
+                pipeline = construct_pipeline(config, verbose=True, n_jobs=8)
+                pipeline.fit(X_train, y_train)
+                y_pred = pipeline.predict_proba(X_test)
+                # 算 metrics
+                all_scores = calculate_score(y_test, y_pred, "classification", f1, True)[1]
+                for metric_name, score in all_scores.items():
+                    all_scores_list[metric_name].append(score)
+            all_scores_mean = {}
+            for metric_name, scores in all_scores_list.items():
+                all_scores_mean[metric_name] = float(np.mean(scores))
+            failed_info = None
+        except Exception as e:
+            failed_info = str(e)
+            all_scores_mean = None
+        cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
+        print('accuracy', all_scores_mean['accuracy'])
+        Trial.update(
+            cost_time=cost_time,
+            failed_info=failed_info,
+            all_score=all_scores_mean,
+            config=config
+        ).where(Trial.config_id == config_id).execute()
+        # 整理数据，上传数据库
+        print()
+
+
+# 开多个进程，对切片的config进行处理
+Parallel(backend="multiprocessing", n_jobs=n_jobs)(
+    delayed(process)(configs)
+    for configs in config_chunks
+)
+
+os.system("mkdir rm -rf $SAVEDPATH/tmp")
+

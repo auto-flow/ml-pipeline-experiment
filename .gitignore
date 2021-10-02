@@ -32,3 +32,4 @@ submit_jobs
 !experiments/results/*.json
 !experiments/plots/*.png
 !experiments/plots/*.pdf
+savedpath

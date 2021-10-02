@@ -37,7 +37,7 @@ knn_models = [
 
 
 class Learner(BaseEstimator, ClassifierMixin):
-    def __init__(self, AS, HP, n_jobs=None):
+    def __init__(self, AS, HP, n_jobs=1):
         if n_jobs is None:
             n_jobs = mp.cpu_count()
         self.n_jobs = n_jobs

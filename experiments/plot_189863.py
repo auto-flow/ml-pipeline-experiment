@@ -33,7 +33,7 @@ for fname, (name, color,) in info.items():
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(1.269e-1,1.39e-1)
+    plt.ylim(1.260e-1, 1.39e-1)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,

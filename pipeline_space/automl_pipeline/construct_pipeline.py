@@ -3,6 +3,7 @@
 # @Author  : qichun tang
 # @Date    : 2021-04-21
 # @Contact    : qichun.tang@bupt.edu.cn
+import os
 from copy import deepcopy
 
 from sklearn.pipeline import Pipeline
@@ -12,7 +13,7 @@ from pipeline_space.automl_pipeline.learner import Learner
 from pipeline_space.automl_pipeline.selector import Selector
 
 scalers = [RobustScaler, MinMaxScaler, StandardScaler]
-
+os.system("mkdir -p $SAVEDPATH/tmp")
 
 def construct_scaler(config):
     AS, HP = config.popitem()
@@ -33,7 +34,10 @@ def construct_learner(config, n_jobs=None):
     return ('learner', learner)
 
 
-def construct_pipeline(config, memory="/tmp", verbose=True, n_jobs=None):
+def construct_pipeline(
+        config,
+        memory=os.environ["SAVEDPATH"] + "/tmp",
+        verbose=True, n_jobs=None):
     config = deepcopy(config)
     steps = [
         construct_scaler(config['scaler']),

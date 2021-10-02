@@ -14,7 +14,7 @@ from pipeline_space.hdl import layering_config
 
 from pipeline_space.automl_pipeline.construct_pipeline import construct_pipeline
 
-X, y, cat = load("/data/Project/AutoML/ML-Pipeline-Experiment/189864.bz2")
+X, y, cat = load("/media/tqc/doc/Project/metalearn_experiment/data/189864.bz2")
 y = y.astype(int)
 X = MinMaxScaler().fit_transform(X)
 HDL = {

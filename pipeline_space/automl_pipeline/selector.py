@@ -39,7 +39,7 @@ class Selector(BaseEstimator, TransformerMixin):
             max_depth=None,
             num_leaves=None,
             min_samples_split=None,
-            n_jobs=None):
+            n_jobs=1):
         self.min_samples_split = min_samples_split
         self.num_leaves = num_leaves
         self.max_depth = max_depth
