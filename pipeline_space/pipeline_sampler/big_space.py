@@ -3,7 +3,9 @@
 # @Author  : qichun tang
 # @Date    : 2021-10-02
 # @Contact    : qichun.tang@bupt.edu.cn
-from .base import BasePipelineSampler
+from pipeline_space.pipeline_sampler.base import BasePipelineSampler
+from pipeline_space.utils import generate_grid
+from pipeline_space.hdl import hdl2cs
 
 
 class BigPipelineSampler(BasePipelineSampler):
@@ -16,9 +18,9 @@ class BigPipelineSampler(BasePipelineSampler):
                 "RobustScaler": {}
             },
             "selector(choice)": {
-                "LogisticRegression": {
-                    "C": {"_type": "ordinal", "_value": [0.1, 0.25, 0.5, 1, 5]}
-                },
+                # "LogisticRegression": {
+                #     "C": {"_type": "ordinal", "_value": [0.1, 0.25, 0.5, 1, 5]}
+                # },
                 "LinearSVC": {
                     "C": {"_type": "ordinal", "_value": [0.1, 0.25, 0.5, 1, 5]}
                 },
@@ -53,10 +55,10 @@ class BigPipelineSampler(BasePipelineSampler):
                     "C": {"_type": "quniform", "_value": [0.01, 1, 0.033]},
                     "penalty": {"_type": "choice", "_value": ["l2", "l1"]},
                 },
-                "LogisticRegression": {
-                    "C": {"_type": "quniform", "_value": [0.01, 1, 0.033]},
-                    "penalty": {"_type": "choice", "_value": ["l2", "l1"]},
-                },
+                # "LogisticRegression": {
+                #     "C": {"_type": "quniform", "_value": [0.01, 1, 0.033]},
+                #     "penalty": {"_type": "choice", "_value": ["l2", "l1"]},
+                # },
                 "RandomForestClassifier": {
                     "min_samples_split": {"_type": "int_quniform", "_value": [2, 22, 2]},  # 2 7 12 15 22
                     "min_samples_leaf": {"_type": "int_quniform", "_value": [1, 11, 2]},  # 1 6 11
@@ -76,3 +78,6 @@ class BigPipelineSampler(BasePipelineSampler):
             }
         }
         return HDL
+
+if __name__ == '__main__':
+    print(len(generate_grid(hdl2cs(BigPipelineSampler().get_HDL()))))

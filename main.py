@@ -15,7 +15,6 @@
     3.3 对metrics求平均
     3.4 整理好数据，上传数据库
 '''
-import json
 import os
 import socket
 from collections import defaultdict
@@ -24,7 +23,6 @@ from random import seed
 from time import time
 
 import numpy as np
-import pandas as pd
 from joblib import load, delayed, Parallel
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
@@ -33,12 +31,12 @@ from pipeline_space.automl_pipeline.construct_pipeline import construct_pipeline
 # from pipeline_space.build_ml_pipeline_space import get_all_configs
 from pipeline_space.metrics import calculate_score, f1
 from pipeline_space.pipeline_sampler import SmallPipelineSampler, BigPipelineSampler
-from pipeline_space.utils import get_chunks, get_hash_of_str
+from pipeline_space.utils import get_chunks, get_hash_of_str, dict_to_csv_str
 
 hostname = socket.gethostname()
 
 # 单机环境变量填写：
-# SPLITS=30;INDEX=10;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=big_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2;SAVEDPATH=.savedpath
+# SPLITS=30;INDEX=10;KFOLD=3;SPACE_TYPE=BIG;TABLE_NAME=big_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2
 SPLITS = int(os.environ['SPLITS'])
 INDEX = int(os.environ['INDEX'])
 KFOLD = int(os.environ['KFOLD'])
@@ -79,6 +77,9 @@ is_test = False
 if "tqc" in hostname:
     n_jobs = 1
     is_test = True
+    os.environ['SAVEDPATH'] = 'savedpath'
+    os.system(f"rm -rf $SAVEDPATH")
+    os.system(f"mkdir -p $SAVEDPATH")
 else:
     n_jobs = 1
 
@@ -86,13 +87,20 @@ seed(0)
 # shuffle(sub_configs)
 config_chunks = get_chunks(sub_configs, 1)
 
+fname = os.environ['SAVEDPATH'] + "/data.csv"
+log_fname = os.environ['SAVEDPATH'] + "/info.log"
+f = open(fname, 'w+')
+log_f = open(log_fname, 'w+')
+columns = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
+f.write(",".join(columns) + "\n")
+all_start_time = time()
+
 
 # for config in tqdm(sub_configs):
 def process(configs):
     # 会深拷贝X,y
-    columns = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
-    data = []
 
+    total = len(configs)
     for idx, config in enumerate(configs):
         config_id = get_hash_of_str(str(config))
         print(config_id)
@@ -116,24 +124,28 @@ def process(configs):
             all_scores_mean = {}
             for metric_name, scores in all_scores_list.items():
                 all_scores_mean[metric_name] = float(np.mean(scores))
-            failed_info = None
+            failed_info = ""
         except Exception as e:
             failed_info = str(e)
             all_scores_mean = {}
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
         print('accuracy', all_scores_mean.get('accuracy'))
-        data.append([
+        f.write(",".join([
             config_id,
-            cost_time,
+            str(cost_time),
             failed_info,
-            json.dumps(all_scores_mean),
-            json.dumps(config),
-        ])
-        if is_test and idx>10:
+            dict_to_csv_str(all_scores_mean),
+            dict_to_csv_str(config),
+        ]) + "\n")
+        all_cost_time = time() - all_start_time
+        p = (idx + 1) / total
+        rest_time = all_cost_time * ((1 - p) / p)
+        info = (f"index = {idx}, rest_time = {rest_time:.2f}, cost_time = {all_cost_time:.2f}")
+        print(info)
+        log_f.write(info + "\n")
+        if is_test and idx > 10:
             print('finish test')
             break
-    df = pd.DataFrame(data, columns=columns)
-    df.to_csv(os.environ['SAVEDPATH'] + "/data.csv", index=False)
 
 
 # 开多个进程，对切片的config进行处理
@@ -143,3 +155,5 @@ Parallel(backend="multiprocessing", n_jobs=n_jobs)(
 )
 
 os.system("rm -rf $SAVEDPATH/tmp")
+f.close()
+log_f.close()
