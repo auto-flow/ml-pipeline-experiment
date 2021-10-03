@@ -134,7 +134,7 @@ def process(configs):
                 not_exist = (len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0)
                 break
             except Exception as e:
-                print(e)
+                print('error:', e)
                 sleep(5)
                 Trial = get_conn()
         if not_exist:
@@ -167,13 +167,13 @@ def process(configs):
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
         print('accuracy', all_scores_mean.get('accuracy'))
         fields.append(dict(zip(rows, [config_id, cost_time, failed_info, all_scores_mean, config])))
-        if len(fields) > 10:
+        if len(fields) >= 10:
             for _ in range(3):
                 try:
                     Trial.insert_many(fields).execute()
                     break
                 except Exception as e:
-                    print(e)
+                    print('error:', e)
                     sleep(5)
                     Trial = get_conn()
             fields = []
@@ -191,7 +191,7 @@ def process(configs):
                 Trial.insert_many(fields).execute()
                 break
             except Exception as e:
-                print(e)
+                print('error:', e)
                 sleep(5)
                 Trial = get_conn()
 
