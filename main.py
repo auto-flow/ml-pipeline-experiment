@@ -20,7 +20,7 @@ import socket
 from collections import defaultdict
 from pprint import pprint
 from random import seed
-from time import time
+from time import time, sleep
 
 import numpy as np
 import peewee as pw
@@ -128,7 +128,15 @@ def process(configs):
         print(config)
         all_scores_list = defaultdict(list)
         start_time = time()
-        if len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0:
+        not_exist = True
+        for _ in range(3):
+            try:
+                not_exist = (len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0)
+                continue
+            except:
+                sleep(5)
+                Trial = get_conn()
+        if not_exist:
             # Trial.create(config_id=config_id)
             pass
         else:
@@ -163,6 +171,7 @@ def process(configs):
                     Trial.insert_many(fields).execute()
                     continue
                 except:
+                    sleep(5)
                     Trial = get_conn()
             fields = []
         # Trial.update(
@@ -179,6 +188,7 @@ def process(configs):
                 Trial.insert_many(fields).execute()
                 continue
             except:
+                sleep(5)
                 Trial = get_conn()
 
 
