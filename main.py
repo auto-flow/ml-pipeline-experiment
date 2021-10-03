@@ -62,12 +62,13 @@ def get_conn(create_table=False):
 
     if create_table:
         Trial.create_table(safe=True)
+
     return Trial
 
 
 get_conn(create_table=True)
 # 单机环境变量填写：
-# SPLITS=10;INDEX=0;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=small_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2
+# SPLITS=30;INDEX=10;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=big_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2;SAVEDPATH=.savedpath
 SPLITS = int(os.environ['SPLITS'])
 INDEX = int(os.environ['INDEX'])
 KFOLD = int(os.environ['KFOLD'])
@@ -118,6 +119,9 @@ config_chunks = get_chunks(sub_configs, 1)
 def process(configs):
     # 会深拷贝X,y
     Trial = get_conn()
+    rows = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
+    fields = []
+
     for config in configs:
         config_id = get_hash_of_str(str(config))
         print(config_id)
@@ -125,7 +129,8 @@ def process(configs):
         all_scores_list = defaultdict(list)
         start_time = time()
         if len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0:
-            Trial.create(config_id=config_id)
+            # Trial.create(config_id=config_id)
+            pass
         else:
             print(f'{config_id} exists, continue')
             continue
@@ -151,14 +156,30 @@ def process(configs):
             all_scores_mean = {}
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
         print('accuracy', all_scores_mean.get('accuracy'))
-        Trial.update(
-            cost_time=cost_time,
-            failed_info=failed_info,
-            all_score=all_scores_mean,
-            config=config
-        ).where(Trial.config_id == config_id).execute()
+        fields.append(dict(zip(rows, [config_id, cost_time, failed_info, all_scores_mean, config])))
+        if len(fields) > 10:
+            for _ in range(3):
+                try:
+                    Trial.insert_many(fields).execute()
+                    continue
+                except:
+                    Trial = get_conn()
+            fields = []
+        # Trial.update(
+        #     cost_time=cost_time,
+        #     failed_info=failed_info,
+        #     all_score=all_scores_mean,
+        #     config=config
+        # ).where(Trial.config_id == config_id).execute()
         # 整理数据，上传数据库
         print()
+    if len(fields):
+        for _ in range(3):
+            try:
+                Trial.insert_many(fields).execute()
+                continue
+            except:
+                Trial = get_conn()
 
 
 # 开多个进程，对切片的config进行处理
@@ -167,4 +188,4 @@ Parallel(backend="multiprocessing", n_jobs=n_jobs)(
     for configs in config_chunks
 )
 
-os.system("mkdir rm -rf $SAVEDPATH/tmp")
+os.system("rm -rf $SAVEDPATH/tmp")
