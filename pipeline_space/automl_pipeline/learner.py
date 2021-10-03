@@ -62,8 +62,8 @@ class Learner(BaseEstimator, ClassifierMixin):
             ))
         elif AS in boosting_models:
             self.HP.update(dict(
-                n_jobs=n_jobs,
-                nthread=n_jobs,
+                # n_jobs=n_jobs,
+                # nthread=n_jobs,
                 n_estimators=100,
                 learning_rate=0.1,
             ))

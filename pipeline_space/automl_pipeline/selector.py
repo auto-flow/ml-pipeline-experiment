@@ -69,8 +69,8 @@ class Selector(BaseEstimator, TransformerMixin):
 
         elif AS in boosting_models:
             self.HP.update(
-                n_jobs=n_jobs,
-                nthread=n_jobs,
+                # n_jobs=n_jobs,
+                # nthread=n_jobs,
                 n_estimators=50,
                 learning_rate=0.2,
                 min_samples_split=min_samples_split
