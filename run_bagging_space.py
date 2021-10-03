@@ -73,7 +73,7 @@ solved_config_id_set = set()
 if exist_file:
     # 从文件中把已经解决的config_id读出来
     solved_config_id_set = set(pd.read_csv(out_fname)['config_id'].to_list())
-f = open(out_fname, 'w+')
+f = open(out_fname, 'a')
 if not exist_file:
     f.write(",".join(columns) + "\n")
 
