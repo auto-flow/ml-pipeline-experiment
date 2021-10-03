@@ -132,8 +132,9 @@ def process(configs):
         for _ in range(3):
             try:
                 not_exist = (len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0)
-                continue
-            except:
+                break
+            except Exception as e:
+                print(e)
                 sleep(5)
                 Trial = get_conn()
         if not_exist:
@@ -170,8 +171,9 @@ def process(configs):
             for _ in range(3):
                 try:
                     Trial.insert_many(fields).execute()
-                    continue
-                except:
+                    break
+                except Exception as e:
+                    print(e)
                     sleep(5)
                     Trial = get_conn()
             fields = []
@@ -187,8 +189,9 @@ def process(configs):
         for _ in range(3):
             try:
                 Trial.insert_many(fields).execute()
-                continue
-            except:
+                break
+            except Exception as e:
+                print(e)
                 sleep(5)
                 Trial = get_conn()
 
