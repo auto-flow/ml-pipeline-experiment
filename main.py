@@ -15,17 +15,17 @@
     3.3 对metrics求平均
     3.4 整理好数据，上传数据库
 '''
+import json
 import os
 import socket
 from collections import defaultdict
 from pprint import pprint
 from random import seed
-from time import time, sleep
+from time import time
 
 import numpy as np
-import peewee as pw
+import pandas as pd
 from joblib import load, delayed, Parallel
-from playhouse.postgres_ext import JSONField
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 
@@ -36,37 +36,7 @@ from pipeline_space.pipeline_sampler import SmallPipelineSampler, BigPipelineSam
 from pipeline_space.utils import get_chunks, get_hash_of_str
 
 hostname = socket.gethostname()
-# psql -U postgres
-db = pw.PostgresqlDatabase(
-    database="ml_pipeline_experiment",
-    host="123.56.90.56",
-    user="postgres",
-    password="xenon"
-)
 
-
-# os.environ['OMP_NUM_THREADS'] = "1"
-
-
-def get_conn(create_table=False):
-    class Trial(pw.Model):
-        config_id = pw.CharField(primary_key=True)
-        cost_time = pw.FloatField(null=True)
-        failed_info = pw.TextField(null=True)
-        all_score = JSONField(null=True)
-        config = JSONField(null=True)
-
-        class Meta:
-            database = db
-            table_name = os.environ['TABLE_NAME']
-
-    if create_table:
-        Trial.create_table(safe=True)
-
-    return Trial
-
-
-get_conn(create_table=True)
 # 单机环境变量填写：
 # SPLITS=30;INDEX=10;KFOLD=5;SPACE_TYPE=BIG;TABLE_NAME=big_d146594;DATAPATH=/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2;SAVEDPATH=.savedpath
 SPLITS = int(os.environ['SPLITS'])
@@ -105,8 +75,10 @@ cv = StratifiedKFold(n_splits=KFOLD, shuffle=True, random_state=0)
 print(next(cv.split(X, y))[0])
 
 # 单机测试
+is_test = False
 if "tqc" in hostname:
     n_jobs = 1
+    is_test = True
 else:
     n_jobs = 1
 
@@ -118,37 +90,16 @@ config_chunks = get_chunks(sub_configs, 1)
 # for config in tqdm(sub_configs):
 def process(configs):
     # 会深拷贝X,y
-    Trial = get_conn()
-    rows = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
-    fields = []
+    columns = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
+    data = []
 
-    for config in configs:
+    for idx, config in enumerate(configs):
         config_id = get_hash_of_str(str(config))
         print(config_id)
         print(config)
         all_scores_list = defaultdict(list)
         start_time = time()
-        not_exist = True
-        error = True
-        for _ in range(10):
-            try:
-                not_exist = (len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0)
-                error = False
-                break
-            except Exception as e:
-                print('error:', e)
-                sleep(10)
-                Trial = get_conn()
-        if error:
-            print('can not solve error.')
-            exit(0)
-        if not_exist:
-            # Trial.create(config_id=config_id)
-            pass
-        else:
-            print(f'{config_id} exists, continue')
-            sleep(0.1)
-            continue
+
         try:
             for train_ix, test_ix in cv.split(X, y):
                 X_train = X[train_ix, :]
@@ -171,39 +122,18 @@ def process(configs):
             all_scores_mean = {}
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
         print('accuracy', all_scores_mean.get('accuracy'))
-        fields.append(dict(zip(rows, [config_id, cost_time, failed_info, all_scores_mean, config])))
-        if len(fields) >= 10:
-            error = True
-            for _ in range(10):
-                try:
-                    Trial.insert_many(fields).execute()
-                    error = False
-                    break
-                except Exception as e:
-                    print('error:', e)
-                    sleep(10)
-                    Trial = get_conn()
-            fields = []
-            if error:
-                print('can not solve error.')
-                exit(0)
-        # Trial.update(
-        #     cost_time=cost_time,
-        #     failed_info=failed_info,
-        #     all_score=all_scores_mean,
-        #     config=config
-        # ).where(Trial.config_id == config_id).execute()
-        # 整理数据，上传数据库
-        print()
-    if len(fields):
-        for _ in range(3):
-            try:
-                Trial.insert_many(fields).execute()
-                break
-            except Exception as e:
-                print('error:', e)
-                sleep(5)
-                Trial = get_conn()
+        data.append([
+            config_id,
+            cost_time,
+            failed_info,
+            json.dumps(all_scores_mean),
+            json.dumps(config),
+        ])
+        if is_test and idx>10:
+            print('finish test')
+            break
+    df = pd.DataFrame(data, columns=columns)
+    df.to_csv(os.environ['SAVEDPATH'] + "/data.csv", index=False)
 
 
 # 开多个进程，对切片的config进行处理
