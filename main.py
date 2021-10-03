@@ -141,6 +141,7 @@ def process(configs):
             pass
         else:
             print(f'{config_id} exists, continue')
+            sleep(0.1)
             continue
         try:
             for train_ix, test_ix in cv.split(X, y):
