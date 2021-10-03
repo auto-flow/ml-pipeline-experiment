@@ -89,10 +89,10 @@ config_chunks = get_chunks(sub_configs, 1)
 
 fname = os.environ['SAVEDPATH'] + "/data.csv"
 log_fname = os.environ['SAVEDPATH'] + "/info.log"
-f = open(fname, 'w+')
-log_f = open(log_fname, 'w+')
+
 columns = ['config_id', 'cost_time', 'failed_info', 'all_score', 'config']
-f.write(",".join(columns) + "\n")
+with open(fname, 'a') as f:
+    f.write(",".join(columns) + "\n")
 all_start_time = time()
 
 
@@ -130,19 +130,21 @@ def process(configs):
             all_scores_mean = {}
         cost_time = time() - start_time  # 因为缓存的存在，所以可能不准
         print('accuracy', all_scores_mean.get('accuracy'))
-        f.write(",".join([
-            config_id,
-            str(cost_time),
-            failed_info,
-            dict_to_csv_str(all_scores_mean),
-            dict_to_csv_str(config),
-        ]) + "\n")
+        with open(fname, 'a') as f:
+            f.write(",".join([
+                config_id,
+                str(cost_time),
+                failed_info,
+                dict_to_csv_str(all_scores_mean),
+                dict_to_csv_str(config),
+            ]) + "\n")
         all_cost_time = time() - all_start_time
         p = (idx + 1) / total
         rest_time = all_cost_time * ((1 - p) / p)
         info = (f"index = {idx}, rest_time = {rest_time:.2f}, cost_time = {all_cost_time:.2f}")
         print(info)
-        log_f.write(info + "\n")
+        with open(log_fname, 'a') as f:
+            f.write(info + "\n")
         if is_test and idx > 10:
             print('finish test')
             break
