@@ -129,14 +129,19 @@ def process(configs):
         all_scores_list = defaultdict(list)
         start_time = time()
         not_exist = True
-        for _ in range(3):
+        error = True
+        for _ in range(10):
             try:
                 not_exist = (len(list(Trial.select(Trial.config_id).where(Trial.config_id == config_id).dicts())) == 0)
+                error = False
                 break
             except Exception as e:
                 print('error:', e)
-                sleep(5)
+                sleep(10)
                 Trial = get_conn()
+        if error:
+            print('can not solve error.')
+            exit(0)
         if not_exist:
             # Trial.create(config_id=config_id)
             pass
@@ -168,15 +173,20 @@ def process(configs):
         print('accuracy', all_scores_mean.get('accuracy'))
         fields.append(dict(zip(rows, [config_id, cost_time, failed_info, all_scores_mean, config])))
         if len(fields) >= 10:
-            for _ in range(3):
+            error = True
+            for _ in range(10):
                 try:
                     Trial.insert_many(fields).execute()
+                    error = False
                     break
                 except Exception as e:
                     print('error:', e)
-                    sleep(5)
+                    sleep(10)
                     Trial = get_conn()
             fields = []
+            if error:
+                print('can not solve error.')
+                exit(0)
         # Trial.update(
         #     cost_time=cost_time,
         #     failed_info=failed_info,
