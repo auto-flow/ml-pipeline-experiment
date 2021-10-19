@@ -3,11 +3,9 @@
 # @Author  : qichun tang
 # @Date    : 2021-10-02
 # @Contact    : qichun.tang@bupt.edu.cn
-from joblib import dump
-
-from pipeline_space.hdl import hdl2cs
 from pipeline_space.pipeline_sampler.base import BasePipelineSampler
-from pipeline_space.utils import generate_grid
+from pipeline_space.utils import generate_grid, get_hash_of_dict
+from pipeline_space.hdl import hdl2cs
 
 
 class BaggingPipelineSampler(BasePipelineSampler):
@@ -29,7 +27,7 @@ class BaggingPipelineSampler(BasePipelineSampler):
                 "penalty": {"_type": "choice", "_value": ["l2", "l1"]},
             },
             "LogisticRegression": {
-                "C": {"_type": "quniform", "_value": [0.01, 1.01, 0.5]},
+                "C": {"_type": "ordinal", "_value": [0.1, 1, 5]},
                 "penalty": {"_type": "choice", "_value": ["l2", "l1"]},
             },
             "RandomForestClassifier": {
@@ -48,14 +46,14 @@ class BaggingPipelineSampler(BasePipelineSampler):
             }
         }
 
-    def calc_every_learner_counts(self):
-        res = {}
+    def calc_every_learner_grids(self):
+        learner2grids = {}
         for learner, HP in self.all_learner().items():
             CS = hdl2cs({learner: HP})
             grids = generate_grid(CS)
             print(f"{learner}:", len(grids))
-            res[learner] = grids
-        return res
+            learner2grids[learner] = grids
+        return learner2grids
 
     def calc_bagging_learner_counts(self):
         grids = generate_grid(hdl2cs(self.get_HDL()))
@@ -68,13 +66,41 @@ class BaggingPipelineSampler(BasePipelineSampler):
             HDL[f"learner{i}(choice)"] = {learner: HP, "None": {}}
         return HDL
 
+    def get_config_id(self, config: dict):
+        for module, AS_HP in config.items():
+            if AS_HP == {'None': {}}:
+                # 和预处理程序对齐
+                config[module] = {}
+        return get_hash_of_dict(config)
+
+
+def test1():
+    import hyperopt.pyll.stochastic
+    from pipeline_space.hdl import hdl2cs, layering_config
+
+    sampler = BaggingPipelineSampler()
+    print(hyperopt.pyll.stochastic.sample(
+        sampler.get_hyperopt_space()))
+    HDL = sampler.get_HDL()
+    CS = hdl2cs(HDL)
+    print(layering_config(CS.sample_configuration()))
+
 
 if __name__ == '__main__':
+    import pandas as pd
+    import hyperopt.pyll.stochastic
+
+    path='processed_data/bagging_d146594_processed.csv'
+    df=pd.read_csv(path)
+    df.set_index("config_id",inplace=True)
     sampler = BaggingPipelineSampler()
-    learner_grids = sampler.calc_every_learner_counts()
-    bagging_grids = sampler.calc_bagging_learner_counts()
-    grids = {
-        'learner_grids': learner_grids,
-        'bagging_grids': bagging_grids,
-    }
-    dump(grids, "bagging_grids.pkl")
+    space=sampler.get_hyperopt_space()
+    for _ in range(10000):
+        config=hyperopt.pyll.stochastic.sample(space)
+        config_id=sampler.get_config_id(config)
+        row=df.loc[config_id]
+        print(row)
+
+
+
+

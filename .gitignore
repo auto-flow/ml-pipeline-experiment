@@ -33,3 +33,4 @@ submit_jobs
 !experiments/plots/*.png
 !experiments/plots/*.pdf
 savedpath
+bagging_*.csv

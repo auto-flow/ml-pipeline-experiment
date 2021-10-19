@@ -157,5 +157,3 @@ Parallel(backend="multiprocessing", n_jobs=n_jobs)(
 )
 
 os.system("rm -rf $SAVEDPATH/tmp")
-f.close()
-log_f.close()

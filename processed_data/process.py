@@ -8,7 +8,8 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
-datasets = [146594, 189863, 189864]
+# datasets = [146594, 189863, 189864]
+datasets = ["bagging_d146594"]
 
 for dataset in datasets:
     print(dataset)

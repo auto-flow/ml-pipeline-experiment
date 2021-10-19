@@ -4,59 +4,69 @@
 # @Date    : 2021-10-03
 # @Contact    : qichun.tang@bupt.edu.cn
 import os
+import socket
 import warnings
 from time import time
 
 import numpy as np
 import pandas as pd
-# from pipeline_space.build_ml_pipeline_space import get_all_configs
 from joblib import dump, load
 from lightgbm import LGBMClassifier
+from pipeline_space.automl_pipeline.learner import Learner
+from pipeline_space.hdl import hdl2cs
+from pipeline_space.hdl import layering_config
+from pipeline_space.pipeline_sampler.bagging_space import BaggingPipelineSampler
+from pipeline_space.utils import get_hash_of_dict, generate_grid_yield, dict_to_csv_str
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 
-from pipeline_space.automl_pipeline.learner import Learner
-from pipeline_space.hdl import hdl2cs
-from pipeline_space.hdl import layering_config
-from pipeline_space.pipeline_sampler.stacking_space import BaggingPipelineSampler
-from pipeline_space.utils import get_hash_of_dict, generate_grid_yield, dict_to_csv_str
+hostname = socket.gethostname()
 
 warnings.filterwarnings('ignore')
-
+savedpath = os.getenv('SAVEDPATH', '.')
 import_models = [
     XGBClassifier, LGBMClassifier, RandomForestClassifier, ExtraTreesClassifier,
     LogisticRegression, LinearSVC, KNeighborsClassifier
 ]
-datapath = '/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2'
-test_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
+datapath = os.getenv(
+    'DATAPATH',
+    '/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2'
+)
+splitter = StratifiedKFold(n_splits=5, random_state=0, shuffle=True)
 X, y, cat = load(datapath)
 X = X.values
 X = X[:, ~np.array(cat)]
 y = LabelEncoder().fit_transform(y)
-train_ix, test_ix = next(test_split.split(X, y))
-y_test = y[test_ix]
-n_tests = y_test.shape[0]
-res = BaggingPipelineSampler().calc_every_learner_counts()
-fname = "learner2data.pkl"
+n_tests = y.shape[0]
+
+learner2grids = BaggingPipelineSampler().calc_every_learner_grids()
+fname = f"{savedpath}/learner2data.pkl"
+
 if os.path.exists(fname):
     learner2data = load(fname)
 else:
     learner2data = {}
-    for learner, grids in res.items():
+    for learner, grids in learner2grids.items():
+        if "tqc" in hostname and learner not in ['LGBMClassifier', 'XGBClassifier']:
+            continue
         for cs in grids:
             config = layering_config(cs)
             config_id = get_hash_of_dict(config, sort=False)
             AS, HP = config.popitem()
             learner_obj = Learner(AS, HP)
-            learner_obj.fit(X[train_ix, :], y[train_ix])
-            test_pred = learner_obj.predict_proba(X[test_ix])
-            learner2data[config_id] = test_pred
+            y_pred_all = np.zeros([n_tests, 2])
+            for train_ix, test_ix in splitter.split(X, y):
+                y_test = y[test_ix]
+                learner_obj.fit(X[train_ix, :], y[train_ix])
+                test_pred = learner_obj.predict_proba(X[test_ix])
+                y_pred_all[test_ix, :] = test_pred
+            learner2data[config_id] = y_pred_all
         print(learner, ', done.')
     dump(learner2data, fname)
 n_trials = 10000
@@ -73,11 +83,12 @@ solved_config_id_set = set()
 if exist_file:
     # 从文件中把已经解决的config_id读出来
     solved_config_id_set = set(pd.read_csv(out_fname)['config_id'].to_list())
-f = open(out_fname, 'a')
 if not exist_file:
-    f.write(",".join(columns) + "\n")
+    with open(out_fname, 'a') as f:
+        f.write(",".join(columns) + "\n")
 
 is_test = False
+# todo: 可以改成多进程，但是写的时候要加锁
 for config in (generate_grid_yield(CS)):  # , total=total
     index += 1
     if is_test and index > n_trials:
@@ -103,25 +114,24 @@ for config in (generate_grid_yield(CS)):  # , total=total
         n_learners += 1
         config_id = get_hash_of_dict(sub_dict)
         y_pred += learner2data[config_id]
-    y_pred /= n_learners
+    y_pred /= max(n_learners, 1)
     y_prob = y_pred[:, 1]
     y_pred = np.argmax(y_pred, axis=1)
     metric = {
-        "f1": f1_score(y_test, y_pred),
-        "roc_auc": roc_auc_score(y_test, y_prob),
+        "f1": f1_score(y, y_pred),
+        "roc_auc": roc_auc_score(y, y_prob),
         # "precision": precision_score(y_test, y_pred),
         # "recall": recall_score(y_test, y_pred),
     }
     if index % 1000 == 0:
         print(metric)
-    f.write(",".join([
-        line_id,
-        dict_to_csv_str(config),
-        dict_to_csv_str(metric)
-    ]) + "\n")
+    with open(out_fname, 'a') as f:
+        f.write(",".join([
+            line_id,
+            dict_to_csv_str(config),
+            dict_to_csv_str(metric)
+        ]) + "\n")
 if is_test:
     cost_time = time() - start_time
     mean_time = cost_time / n_trials
     print(mean_time * total / 3600)
-
-f.close()
