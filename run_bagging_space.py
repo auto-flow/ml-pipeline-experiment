@@ -77,7 +77,7 @@ columns = ['config_id', 'config', 'metrics']
 data = []
 total = 7 ** 7
 start_time = time()
-out_fname = 'bagging_space.csv'
+out_fname = f'{savedpath}/bagging_space.csv'
 exist_file = os.path.exists(out_fname)
 solved_config_id_set = set()
 if exist_file:
