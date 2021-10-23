@@ -4,13 +4,20 @@
 # @Date    : 2021-05-05
 # @Contact    : qichun.tang@bupt.edu.cn
 from copy import deepcopy
+from time import time
 
 import numpy as np
 import pandas as pd
 from optuna import Trial
-from ultraopt.hdl import layering_config
-
 from pipeline_space.build_ml_pipeline_space import get_HDL
+from ultraopt.hdl import layering_config
+import json
+from copy import deepcopy
+from functools import partial
+
+from pipeline_space.hdl import layering_config
+from pipeline_space.pipeline_sampler import BaggingPipelineSampler
+from pipeline_space.utils import get_hash_of_dict
 
 
 def HDL_define_by_run(trial: Trial, df: pd.DataFrame, sub_HDL: dict, name):
@@ -63,7 +70,7 @@ class OptunaEvaluator():
         return loss
 
 
-class HyperoptEvaluator():
+class PipelineHyperoptEvaluator():
     def __init__(self, df: pd.DataFrame, metric):
         self.metric = metric
         self.df = df
@@ -96,7 +103,7 @@ class HyperoptEvaluator():
         return 1 - float(df[self.metric].values[0])
 
 
-class UltraoptEvaluator():
+class PipelineUltraoptEvaluator():
     def __init__(self, df: pd.DataFrame, metric):
         self.metric = metric
         self.df = df
@@ -107,6 +114,9 @@ class UltraoptEvaluator():
         self.losses = []
 
     def __call__(self, config):
+        # start=time()
+        if not isinstance(config, dict):
+            config = config.get_dictionary()
         layered_config = layering_config(config)
         layered_config_ = deepcopy(layered_config)
         df = self.df
@@ -129,5 +139,56 @@ class UltraoptEvaluator():
                 df = df_
         assert df.shape[0] == 1
         loss = 1 - float(df[self.metric].values[0])
+        self.losses.append(loss)
+        # cost=time()-start
+        # print(cost)
+        return loss
+
+
+class BaggingHyperoptEvaluator():
+    def __init__(self, df: pd.DataFrame, metric="f1"):
+        self.metric = metric
+        df.set_index("config_id", inplace=True)
+        self.df = df
+        # 打印全局最优解数值
+        print('Global minimum: ', end="")
+        df[metric] = df["metrics"].apply(lambda x: json.loads(x)[metric])
+        self.global_min = 1 - df[metric].max()
+        print(self.global_min)
+        self.sampler = BaggingPipelineSampler()
+        self.space = self.sampler.get_hyperopt_space()
+        self.losses = []
+
+    def __call__(self, config):
+        config_id = self.sampler.get_config_id(config)
+        loss = 1 - float(self.df.loc[config_id, self.metric])
+        self.losses.append(loss)
+        return loss
+
+
+class BaggingUltraoptEvaluator():
+    def __init__(self, df: pd.DataFrame, metric):
+        self.metric = metric
+        df.set_index("config_id", inplace=True)
+        self.df = df
+        # 打印全局最优解数值
+        print('Global minimum: ', end="")
+        df[metric] = df["metrics"].apply(lambda x: json.loads(x)[metric])
+        self.global_min = 1 - df[metric].max()
+        print(self.global_min)
+        self.sampler = BaggingPipelineSampler()
+        self.losses = []
+
+    def __call__(self, config):
+        if not isinstance(config, dict):
+            config = config.get_dictionary()
+        layered_config = layering_config(config)
+        layered_config_ = deepcopy(layered_config)
+        # 和预处理程序对齐
+        # for module, AS_HP in layered_config_.items():
+        #     if AS_HP is None:
+        #         layered_config_[module] = {}
+        config_id = get_hash_of_dict(layered_config_)
+        loss = 1 - float(self.df.loc[config_id, self.metric])
         self.losses.append(loss)
         return loss

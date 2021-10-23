@@ -11,29 +11,29 @@ import pylab as plt
 info = {
     "hyperopt-TPE": ("hyperopt-TPE", "r",),
     "ultraopt-ETPE": ("ultraopt-ETPE", "g",),
-    "hpbandster-KDE": ("hpbandster-KDE", "y",),
-    "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
-    "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
-    "Random": ("Random", "b",),
+    # "ultraopt-SMAC": ("ultraopt-SMAC", "k",),
+    # "SMAC": ("SMAC", "y",),
+    # "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
+    # "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
+    # "SMAC": ("SMAC", "k",),
 }
 # 146594, 189863, 189864
 
-dataset_id = 189863
+dataset_id = 189864
 # 设置字体样式
 plt.rcParams['font.family'] = 'YaHei Consolas Hybrid'
 plt.rcParams['figure.figsize'] = (10, 8)
 
 plt.close()
 index = 1
-iteration_truncate = 250
-loss_truncate = np.ones([iteration_truncate]) * 0.23
+iteration_truncate = 200
 for fname, (name, color,) in info.items():
-    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}.json").read_text())
+    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-bagging.json").read_text())
     mean = np.array(mean_std["mean"])[:iteration_truncate]
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(1.275e-1, 1.39e-1)
+    plt.ylim(0.23,0.25)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,

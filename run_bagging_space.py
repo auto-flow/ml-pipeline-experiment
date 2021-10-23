@@ -20,7 +20,7 @@ from pipeline_space.utils import get_hash_of_dict, generate_grid_yield, dict_to_
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 from sklearn.svm import LinearSVC
@@ -38,12 +38,17 @@ datapath = os.getenv(
     'DATAPATH',
     '/media/tqc/doc/Project/metalearn_experiment/data/146594.bz2'
 )
-splitter = StratifiedKFold(n_splits=5, random_state=0, shuffle=True)
+SPLIT_NUM = float(os.getenv('SPLIT_NUM', '0.33'))
+if SPLIT_NUM > 1:
+    splitter = StratifiedKFold(n_splits=5, random_state=0, shuffle=True)
+else:
+    splitter = StratifiedShuffleSplit(n_splits=1, test_size=SPLIT_NUM, random_state=0)
 X, y, cat = load(datapath)
 X = X.values
 X = X[:, ~np.array(cat)]
 y = LabelEncoder().fit_transform(y)
-n_tests = y.shape[0]
+n_tests = None
+y_true = None
 
 learner2grids = BaggingPipelineSampler().calc_every_learner_grids()
 fname = f"{savedpath}/learner2data.pkl"
@@ -60,13 +65,19 @@ else:
             config_id = get_hash_of_dict(config, sort=False)
             AS, HP = config.popitem()
             learner_obj = Learner(AS, HP)
-            y_pred_all = np.zeros([n_tests, 2])
+            y_pred_list = []
+            y_true_list = []
             for train_ix, test_ix in splitter.split(X, y):
                 y_test = y[test_ix]
                 learner_obj.fit(X[train_ix, :], y[train_ix])
                 test_pred = learner_obj.predict_proba(X[test_ix])
-                y_pred_all[test_ix, :] = test_pred
-            learner2data[config_id] = y_pred_all
+                y_pred_list.append(test_pred)
+                y_true_list.append(y_test[:, np.newaxis])
+            y_pred = np.vstack(y_pred_list)
+            if y_true is None:
+                y_true = np.vstack(y_true_list).flatten()
+                n_tests = y_true.shape[0]
+            learner2data[config_id] = y_pred
         print(learner, ', done.')
     dump(learner2data, fname)
 n_trials = 10000

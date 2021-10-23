@@ -17,8 +17,16 @@ info = {
     "optuna-TPE-uni": ("optuna-TPE-univariable", "purple",),
     "Random": ("Random", "b",),
 }
-datasets = [146594, 189863, 189864]
-ylims = [(0.1466, 0.16), (0.1269, 0.139), (0.2085, 0.22)]
+datasets = [
+    146594,
+    # 189863,
+    189864
+]
+ylims = [
+    (0.1466, 0.16),
+    # (0.1269, 0.139),
+    (0.2085, 0.22)
+]
 
 for dataset_id, ylim in zip(datasets, ylims):
     # 设置字体样式

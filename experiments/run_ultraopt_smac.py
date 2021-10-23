@@ -8,12 +8,14 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from experiments.evaluator import UltraoptEvaluator
-from experiments.utils import raw2min
 from joblib import Parallel, delayed
-from pipeline_space.build_ml_pipeline_space import get_HDL
 from ultraopt import fmin
 from ultraopt.hdl import hdl2cs
+from ultraopt.optimizer import ForestOptimizer
+import numpy as np
+from experiments.evaluator import UltraoptEvaluator
+from experiments.utils import raw2min
+from pipeline_space.build_ml_pipeline_space import get_HDL
 
 # 146594, 189863, 189864
 dataset_id = sys.argv[1]
@@ -26,21 +28,30 @@ CS = hdl2cs(HDL)
 repetitions = int(sys.argv[2])
 max_iter = int(sys.argv[3])
 n_startup_trials = int(sys.argv[4])
+print(f"repetitions={repetitions}, max_iter={max_iter}, n_startup_trials={n_startup_trials}")
 res = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
                    index=range(max_iter))
 
 
 def evaluate(trial):
+    from ultraopt.learning.tpe import hyperopt_gamma,optuna_gamma
+    # gamma_=lambda x:min(int(np.ceil(0.20 * x)), 15)
+    optimizer = ForestOptimizer(
+        min_points_in_model=n_startup_trials,
+        use_local_search=True
+        # anneal_steps=10, max_bw_factor=3
+        # gamma=gamma_
+    )
     ret = fmin(
-        evaluator, HDL, "Random", random_state=trial * 10,
+        evaluator, HDL, optimizer, random_state=trial * 10,
         n_iterations=max_iter,
     )
     losses = ret["budget2obvs"][1]["losses"]
-    return trial, losses
+    global_min = evaluator.global_min
+    return trial, losses, global_min
 
 
-global_min = evaluator.global_min
-for trial, losses in Parallel(
+for trial, losses, global_min in Parallel(
         backend="multiprocessing", n_jobs=-1)(
     delayed(evaluate)(trial) for trial in range(repetitions)
 ):
@@ -57,7 +68,7 @@ final_result = {
     "q75": res.quantile(0.75, 1).tolist(),
     "q90": res.quantile(0.90, 1).tolist()
 }
-
-Path(f'experiments/results/Random-{dataset_id}.json').write_text(
+Path(f'experiments/results/ultraopt-SMAC-{dataset_id}.json').write_text(
     json.dumps(final_result)
 )
+print(m.to_list()[-1])

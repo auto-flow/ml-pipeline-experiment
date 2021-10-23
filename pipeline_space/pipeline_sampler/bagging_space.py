@@ -70,7 +70,7 @@ class BaggingPipelineSampler(BasePipelineSampler):
         for module, AS_HP in config.items():
             if AS_HP == {'None': {}}:
                 # 和预处理程序对齐
-                config[module] = {}
+                config[module] = None
         return get_hash_of_dict(config)
 
 
