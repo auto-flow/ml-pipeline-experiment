@@ -129,8 +129,8 @@ for config in (generate_grid_yield(CS)):  # , total=total
     y_prob = y_pred[:, 1]
     y_pred = np.argmax(y_pred, axis=1)
     metric = {
-        "f1": f1_score(y, y_pred),
-        "roc_auc": roc_auc_score(y, y_prob),
+        "f1": f1_score(y_true, y_pred),
+        "roc_auc": roc_auc_score(y_true, y_prob),
         # "precision": precision_score(y_test, y_pred),
         # "recall": recall_score(y_test, y_pred),
     }
