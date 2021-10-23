@@ -70,7 +70,7 @@ else:
             for train_ix, test_ix in splitter.split(X, y):
                 y_test = y[test_ix]
                 learner_obj.fit(X[train_ix, :], y[train_ix])
-                test_pred = learner_obj.predict_proba(X[test_ix])
+                test_pred = learner_obj.predict_proba(X[test_ix, :])
                 y_pred_list.append(test_pred)
                 y_true_list.append(y_test[:, np.newaxis])
             y_pred = np.vstack(y_pred_list)
