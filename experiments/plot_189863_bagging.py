@@ -11,19 +11,20 @@ import pylab as plt
 info = {
     "hyperopt-TPE": ("hyperopt-TPE", "r",),
     "ultraopt-ETPE": ("ultraopt-ETPE", "g",),
-    "ultraopt-ETPE-2": ("ultraopt-ETPE-2", "orange",),
-    "ultraopt-ETPE-ada": ("ultraopt-ETPE-ada", "purple",),
+        "ultraopt-ETPE-univar": ("ultraopt-ETPE(univar)", "brown",),
 
-    # "hpbandster-KDE": ("hpbandster-KDE", "y",),
+    # "ultraopt-SMAC": ("ultraopt-SMAC", "k",),
+    # "SMAC": ("SMAC", "y",),
     # "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
-    # "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
-    # "Random": ("Random", "b",),
-    "SMAC": ("SMAC", "k",),
+    "optuna-TPE": ("optuna-TPE", "purple",),
+    "BOHB-KDE": ("BOHB-KDE", "b",),
+    "Random": ("Random", "k",),
 
+    # "SMAC": ("SMAC", "k",),
 }
 # 146594, 189863, 189864
 
-dataset_id = 189864
+dataset_id = 189863
 # 设置字体样式
 plt.rcParams['font.family'] = 'YaHei Consolas Hybrid'
 plt.rcParams['figure.figsize'] = (10, 8)
@@ -32,12 +33,12 @@ plt.close()
 index = 1
 iteration_truncate = 500
 for fname, (name, color,) in info.items():
-    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-pipeline.json").read_text())
+    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-bagging.json").read_text())
     mean = np.array(mean_std["mean"])[:iteration_truncate]
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(0.2075, 0.22)
+    plt.ylim(0.137,0.15)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,
@@ -57,5 +58,5 @@ title = "Comparison between Optimizers"
 plt.title(f"{dataset_id}")
 plt.tight_layout()
 for suffix in ["pdf", "png"]:
-    plt.savefig(f"{dataset_id}.{suffix}")
+    plt.savefig(f"{dataset_id}_bagging.{suffix}")
 plt.show()

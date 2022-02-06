@@ -14,8 +14,12 @@ info = {
     # "ultraopt-SMAC": ("ultraopt-SMAC", "k",),
     # "SMAC": ("SMAC", "y",),
     # "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
-    # "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
-    "SMAC": ("SMAC", "k",),
+    "optuna-TPE": ("optuna-TPE", "purple",),
+    "BOHB-KDE": ("BOHB-KDE", "b",),
+    "ultraopt-ETPE-univar": ("ultraopt-ETPE(univar)", "brown",),
+    "Random": ("Random", "k",),
+
+    # "SMAC": ("SMAC", "k",),
 }
 # 146594, 189863, 189864
 
@@ -26,14 +30,14 @@ plt.rcParams['figure.figsize'] = (10, 8)
 
 plt.close()
 index = 1
-iteration_truncate = 200
+iteration_truncate = 500
 for fname, (name, color,) in info.items():
     mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-bagging.json").read_text())
     mean = np.array(mean_std["mean"])[:iteration_truncate]
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(0.160,0.18)
+    plt.ylim(0.1623,0.18)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,
@@ -53,5 +57,5 @@ title = "Comparison between Optimizers"
 plt.title(f"{dataset_id}")
 plt.tight_layout()
 for suffix in ["pdf", "png"]:
-    plt.savefig(f"{dataset_id}.{suffix}")
+    plt.savefig(f"{dataset_id}_bagging.{suffix}")
 plt.show()

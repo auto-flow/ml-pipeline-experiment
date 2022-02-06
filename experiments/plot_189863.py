@@ -11,10 +11,12 @@ import pylab as plt
 info = {
     "hyperopt-TPE": ("hyperopt-TPE", "r",),
     "ultraopt-ETPE": ("ultraopt-ETPE", "g",),
-    "hpbandster-KDE": ("hpbandster-KDE", "y",),
-    "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
-    "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
-    "Random": ("Random", "b",),
+    "ultraopt-ETPE-2": ("ultraopt-ETPE-2", "orange",),
+
+    # "hpbandster-KDE": ("hpbandster-KDE", "y",),
+    # "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
+    # "optuna-TPE-uni": ("optuna-TPE-uni", "purple",),
+    "SMAC": ("SMAC", "b",),
 }
 # 146594, 189863, 189864
 
@@ -25,15 +27,15 @@ plt.rcParams['figure.figsize'] = (10, 8)
 
 plt.close()
 index = 1
-iteration_truncate = 250
+iteration_truncate = 500
 loss_truncate = np.ones([iteration_truncate]) * 0.23
 for fname, (name, color,) in info.items():
-    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}.json").read_text())
+    mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-pipeline.json").read_text())
     mean = np.array(mean_std["mean"])[:iteration_truncate]
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(1.275e-1, 1.39e-1)
+    plt.ylim(1.26e-1, 1.35e-1)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,

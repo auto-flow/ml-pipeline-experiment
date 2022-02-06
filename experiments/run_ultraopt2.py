@@ -26,11 +26,6 @@ repetitions = int(sys.argv[3])
 max_iter = int(sys.argv[4])
 n_startup_trials = int(sys.argv[5])
 
-# max_groups= int(sys.argv[6])
-multivariate = (sys.argv[6].lower() == 'true')
-
-print(f"multivariate={multivariate}")
-
 if benchmark_type == "pipeline":
     HDL = SmallPipelineSampler().get_HDL()
     data = pd.read_csv(f'processed_data/d{dataset_id}_processed.csv')
@@ -50,10 +45,11 @@ df = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
 
 
 def evaluate(trial):
-    # gamma_=lambda x:min(int(np.ceil(0.20 * x)), 15)
     optimizer = ETPEOptimizer(
-        multivariate=multivariate,
         min_points_in_model=n_startup_trials,
+        max_bw_factor=4,
+        min_bw_factor=2,
+        adaptive_multivariate=False
     )
     ret = fmin(
         evaluator, HDL, optimizer, random_state=trial * 10,
@@ -66,7 +62,7 @@ def evaluate(trial):
 global_min = evaluator.global_min
 
 for trial, losses in Parallel(
-        backend="multiprocessing", n_jobs=-1)(
+        backend="multiprocessing", n_jobs=10)(
     delayed(evaluate)(trial) for trial in range(repetitions)
 ):
     df[f"trial-{trial}"] = losses
@@ -82,16 +78,7 @@ final_result = {
     "q75": res.quantile(0.75, 1).tolist(),
     "q90": res.quantile(0.90, 1).tolist()
 }
-
-pre_name = 'experiments/results/ultraopt-ETPE'
-if multivariate:
-    pre_name += "-multivar"
-else:
-    pre_name += '-univar'
-fname = f'{pre_name}-{dataset_id}-{benchmark_type}'
-# if limit_max_groups:
-#     fname+=f"_g{max_groups}"
-
+fname = f'experiments/results/ultraopt-ETPE-3-{dataset_id}-{benchmark_type}'
 Path(f'{fname}.json').write_text(
     json.dumps(final_result)
 )

@@ -10,7 +10,10 @@ import pylab as plt
 
 info = {
     "hyperopt-TPE": ("hyperopt-TPE", "r",),
+    "hyperopt-ATPE": ("hyperopt-ATPE", "b",),
     "ultraopt-ETPE": ("ultraopt-ETPE", "g",),
+    "ultraopt-ETPE-2": ("ultraopt-ETPE-2", "orange",),
+    "ultraopt-ETPE-ada": ("ultraopt-ETPE-ada", "purple",),
     # "ultraopt-SMAC": ("ultraopt-SMAC", "k",),
     "SMAC": ("SMAC", "k",),
     # "optuna-TPE-multi": ("optuna-TPE-multi", "k",),
@@ -26,14 +29,14 @@ plt.rcParams['figure.figsize'] = (10, 8)
 
 plt.close()
 index = 1
-iteration_truncate = 250
-for fname, (name, color,) in info.items():
+iteration_truncate = 500
+for fname, (name, color) in info.items():
     mean_std = json.loads(Path(f"experiments/results/{fname}-{dataset_id}-pipeline.json").read_text())
     mean = np.array(mean_std["mean"])[:iteration_truncate]
     q1 = np.array(mean_std["q25"])[:iteration_truncate]
     q2 = np.array(mean_std["q75"])[:iteration_truncate]
     iters = range(len(mean))
-    plt.ylim(0.1466, 0.16)
+    plt.ylim(0.145, 0.154)
     # if not log_scale:
     plt.fill_between(
         iters, q1, q2, alpha=0.1,

@@ -34,3 +34,4 @@ submit_jobs
 !experiments/plots/*.pdf
 savedpath
 bagging_*.csv
+results

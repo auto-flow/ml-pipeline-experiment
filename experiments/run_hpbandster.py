@@ -31,10 +31,6 @@ class MyWorker(Worker):
     def compute(self, config, budget, **kwargs):
         return {"loss": self.evaluator(config)}
 
-
-
-
-
 hb_run_id = f'{dataset_id}'
 
 NS = hpns.NameServer(run_id=hb_run_id, host='localhost', port=0)
@@ -66,7 +62,7 @@ for trial in range(repetitions):
                 nameserver=ns_host,
                 nameserver_port=ns_port,
                 num_samples=64,
-                random_fraction=33,
+                random_fraction=1/3,
                 bandwidth_factor=3,
                 ping_interval=10, min_bandwidth=.3)
 

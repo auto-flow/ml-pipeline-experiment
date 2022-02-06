@@ -14,6 +14,10 @@ def raw2min(df: pd.DataFrame):
     return df_m
 
 
+def replace_ordinal_to_cat(HDL):
+    return eval(str(HDL).replace('ordinal', 'choice'))
+
+
 from numpy import ma
 from matplotlib import scale as mscale
 from matplotlib import transforms as mtransforms
@@ -152,12 +156,11 @@ class MercatorLatitudeScale(mscale.ScaleBase):
 # that Matplotlib can find it.
 mscale.register_scale(MercatorLatitudeScale)
 
-
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     t = np.arange(-180.0, 180.0, 0.1)
-    s = np.radians(t)/2.
+    s = np.radians(t) / 2.
 
     plt.plot(t, s, '-', lw=2)
     plt.gca().set_yscale('mercator')

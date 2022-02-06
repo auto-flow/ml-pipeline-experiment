@@ -3,21 +3,18 @@
 # @Author  : qichun tang
 # @Date    : 2021-05-05
 # @Contact    : qichun.tang@bupt.edu.cn
+
+import json
 from copy import deepcopy
-from time import time
 
 import numpy as np
 import pandas as pd
 from optuna import Trial
 from pipeline_space.build_ml_pipeline_space import get_HDL
-from ultraopt.hdl import layering_config
-import json
-from copy import deepcopy
-from functools import partial
-
 from pipeline_space.hdl import layering_config
-from pipeline_space.pipeline_sampler import BaggingPipelineSampler
+from pipeline_space.pipeline_sampler import BaggingPipelineSampler, SmallPipelineSampler
 from pipeline_space.utils import get_hash_of_dict
+from ultraopt.hdl import layering_config
 
 
 def HDL_define_by_run(trial: Trial, df: pd.DataFrame, sub_HDL: dict, name):
@@ -36,6 +33,8 @@ def HDL_define_by_run(trial: Trial, df: pd.DataFrame, sub_HDL: dict, name):
             v = trial.suggest_categorical(com_hp_name, _value)
         elif _type in ("int_quniform", "quniform"):
             v = trial.suggest_discrete_uniform(com_hp_name, *_value)
+            if _type == "int":
+                v = int(v)
         else:
             raise NotImplementedError
         if isinstance(v, float):
@@ -46,7 +45,25 @@ def HDL_define_by_run(trial: Trial, df: pd.DataFrame, sub_HDL: dict, name):
     return df
 
 
-class OptunaEvaluator():
+def HDL_define_by_run_get_config(trial: Trial, HP: dict, name, AS):
+    config = {}
+    for hp_name, hp_define in HP.items():
+        _type = hp_define["_type"]
+        _value = hp_define["_value"]
+        com_hp_name = f"{name}.{AS}.{hp_name}"
+        if _type in ("ordinal", "choice"):
+            v = trial.suggest_categorical(com_hp_name, _value)
+        elif _type in ("int_quniform", "quniform"):
+            v = trial.suggest_discrete_uniform(com_hp_name, *_value)
+            if _type == "int_quniform":
+                v = int(v)
+        else:
+            raise NotImplementedError
+        config[hp_name] = v
+    return config
+
+
+class PipelineOptunaEvaluator():
     def __init__(self, df: pd.DataFrame, metric):
         self.metric = metric
         self.df = df
@@ -66,6 +83,38 @@ class OptunaEvaluator():
             df = HDL_define_by_run(trial, df, sub_HDL, component)
         assert df.shape[0] == 1
         loss = 1 - float(df[self.metric].values[0])
+        self.losses.append(loss)
+        return loss
+
+
+class BaggingOptunaEvaluator():
+    def __init__(self, df: pd.DataFrame, metric):
+        self.metric = metric
+        df.set_index("config_id", inplace=True)
+        self.df = df
+        # 打印全局最优解数值
+        print('Global minimum: ', end="")
+        df[metric] = df["metrics"].apply(lambda x: json.loads(x)[metric])
+        self.global_min = 1 - df[metric].max()
+        print(self.global_min)
+        self.sampler = BaggingPipelineSampler()
+        self.HDL = self.sampler.get_HDL()
+        self.losses = []
+
+    def __call__(self, trial: Trial):
+        config = {}
+        for i in range(7):
+            name = f"learner{i}"
+            AS_HP = deepcopy(self.HDL[f"learner{i}(choice)"])
+            AS_HP.pop('None')
+            AS, HP = AS_HP.popitem()
+            if trial.suggest_categorical(name, [AS, "None"]) != "None":
+                sub_config = HDL_define_by_run_get_config(trial, HP, name, AS)
+                config[name] = {AS: sub_config}
+            else:
+                config[name] = None
+        config_id = get_hash_of_dict(config)
+        loss = 1 - float(self.df.loc[config_id, self.metric])
         self.losses.append(loss)
         return loss
 
@@ -111,6 +160,7 @@ class PipelineUltraoptEvaluator():
         print('Global minimum: ', end="")
         self.global_min = 1 - df[metric].max()
         print(self.global_min)
+        self.sampler = SmallPipelineSampler()
         self.losses = []
 
     def __call__(self, config):

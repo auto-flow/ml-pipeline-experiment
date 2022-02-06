@@ -4,7 +4,7 @@
 # @Date    : 2021-04-25
 # @Contact    : qichun.tang@bupt.edu.cn
 '''
-smac==0.12.0
+smac==0.10.0
 '''
 import json
 import sys
@@ -16,11 +16,15 @@ from experiments.evaluator import BaggingUltraoptEvaluator
 from experiments.evaluator import PipelineUltraoptEvaluator
 from experiments.utils import raw2min
 from joblib import Parallel, delayed
-from pipeline_space.pipeline_sampler import SmallPipelineSampler, BaggingPipelineSampler
-from smac.facade.smac_hpo_facade import SMAC4HPO
+from pipeline_space.pipeline_sampler import SmallPipelineSampler
+from pipeline_space.pipeline_sampler import BaggingPipelineSampler
+from pipeline_space.build_ml_pipeline_space import get_HDL
+from smac.facade.smac_facade import SMAC
 from smac.scenario.scenario import Scenario
+from smac.tae.execute_func import ExecuteTAFuncDict
 from ultraopt.hdl import hdl2cs
 
+# 146594 10 100 30
 # 146594, 189863, 189864
 dataset_id = sys.argv[1]
 print(dataset_id)
@@ -29,6 +33,10 @@ print(benchmark_type)
 repetitions = int(sys.argv[3])
 max_iter = int(sys.argv[4])
 n_startup_trials = int(sys.argv[5])
+dataset_id = sys.argv[1]
+
+data = pd.read_csv(f'processed_data/d{dataset_id}_processed.csv')
+HDL = get_HDL()
 
 if benchmark_type == "pipeline":
     HDL = SmallPipelineSampler().get_HDL()
@@ -41,13 +49,11 @@ elif benchmark_type == "bagging":
 else:
     raise NotImplementedError
 
-CS = hdl2cs(HDL)
 
 print(f"repetitions={repetitions}, max_iter={max_iter}, n_startup_trials={n_startup_trials}")
 df = pd.DataFrame(columns=[f"trial-{i}" for i in range(repetitions)],
                   index=range(max_iter))
 
-# tae = ExecuteTAFuncDict(evaluator, use_pynisher=False)
 
 random_fraction = 0.33
 n_trees = 10
@@ -56,27 +62,42 @@ global_min = evaluator.global_min
 
 
 def evaluate(trial):
-    random_state = 10 * trial
-    # Scenario object
-    scenario = Scenario({"run_obj": "quality",  # we optimize quality (alternatively runtime)
-                         "runcount-limit": max_iter,
-                         # max. number of function evaluations; for this example set to a low number
-                         "cs": CS,  # configuration space
-                         "deterministic": "true",
-                         "limit-resources": "false",
-                         })
+    cs = hdl2cs(HDL)
+    scenario = Scenario({
+        "run_obj": "quality",
+        "runcount-limit": max_iter,
+        "cs": cs,
+        "deterministic": "false",
+        "initial_incumbent": "RANDOM",
+        "output_dir": "",
+    })
+    tae = ExecuteTAFuncDict(evaluator, use_pynisher=False)
+    initial_configurations = cs.sample_configuration(n_startup_trials)
+    # cs.seed(trial)
+    smac = SMAC(
+        scenario=scenario, tae_runner=tae,
+        rng=np.random.RandomState(trial),
+        initial_configurations=initial_configurations
+    )
     # probability for random configurations
-    smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(random_state),
-                    tae_runner=evaluator,
-                    initial_design_kwargs={"init_budget": n_startup_trials})
+
+    smac.solver.random_configuration_chooser.prob = random_fraction
+    smac.solver.model.rf_opts.num_trees = n_trees
+    # only 1 configuration per SMBO iteration
+    smac.solver.scenario.intensification_percentage = 1e-10
+    smac.solver.intensifier.min_chall = 1
+    # maximum number of function evaluations per configuration
+    smac.solver.intensifier.maxR = max_feval
 
     smac.optimize()
-    incumbent = smac.optimize()
-    runhistory = smac.runhistory
-    configs = runhistory.get_all_configs()
-    losses = [runhistory.get_cost(config) for config in configs]
+
+    # runhistory = smac.runhistory
+    # configs = runhistory.get_all_configs()
+    # losses = [runhistory.get_cost(config) for config in configs]
+
     print('finish', trial)
-    return trial, losses
+    return trial, evaluator.losses[:max_iter]
+
 
 
 for trial, losses in Parallel(
